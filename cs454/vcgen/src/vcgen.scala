@@ -30,6 +30,7 @@ object VCGen {
   case class BDisj(left: BoolExp, right: BoolExp) extends BoolExp
   case class BConj(left: BoolExp, right: BoolExp) extends BoolExp
   case class BParens(b: BoolExp) extends BoolExp
+  case class BVal(v: Boolean) extends BoolExp
 
   /* Assertions */
   type Assertion = BoolExp
@@ -141,7 +142,7 @@ object VCGen {
     //GC(c1; c2) =GC(c1) ; GC(c2)
     //allVars(b).contains(Var("fresh_"i+*)
     if(b.isEmpty){
-      return Assume(BCmp(Num(42),"=",Num(42)))
+      return Assume(BVal(true))
     }
     else {
       val listCmds = b.map (x => translateStatement(x))
@@ -157,12 +158,12 @@ object VCGen {
     e match {
       case Num(v) => Num(v)
       case Var(name) => if (name == old){ f } else Var(name)
+      case Parens(a) => Parens(replace(f,old,a))
       case Add(l,r) => Add(replace(f,old,l),replace(f,old,r))
       case Sub(l,r) => Sub(replace(f,old,l),replace(f,old,r))
       case Mul(l,r) => Mul(replace(f,old,l),replace(f,old,r))
       case Div(l,r) => Div(replace(f,old,l),replace(f,old,r))
       case Mod(l,r) => Mod(replace(f,old,l),replace(f,old,r))
-      case Parens(a) => Parens(replace(f,old,a))
     }
   }
 
@@ -202,13 +203,13 @@ object VCGen {
       //GC({I} while b do c) = ?
       case While(c,i,b) =>
         var c1 =
-          if (i.isEmpty) Assert(BCmp((Num(43),"=",Num(43))))
+          if (i.isEmpty) Assert(BVal(false))
           else composeL (i.map (x => Assert(x)))
         //var c2 = allVars b
         var c3 = composeL ((allVars(b).map (x => Havoc(x))))
-        if (i.isEmpty) {c1 = Assume(BCmp((Num(43),"=",Num(43))))}
+        if (i.isEmpty) {c1 = Assume(BVal(true))}
         else c3 = composeL (i.map (x => Assume(x)))
-        var c4p1 = composeL (List(Assume(c),translateBlock(b),c1,Assume(BCmp(Num(44),"=",Num(45)))))
+        var c4p1 = composeL (List(Assume(c),translateBlock(b),c1,Assume(BVal(false))))
         var c4p2 = Assume(BNot(c))
         var c4 = Or(c4p1,c4p2)
         return composeL (List(c1,c3,c4))
