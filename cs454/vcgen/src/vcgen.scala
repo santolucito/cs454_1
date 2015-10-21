@@ -29,15 +29,20 @@ object VCGen {
   case class BDisj(left: BoolExp, right: BoolExp) extends BoolExp
   case class BConj(left: BoolExp, right: BoolExp) extends BoolExp
   case class BParens(b: BoolExp) extends BoolExp
+  //case class Assertion(cond: BoolExp) extends BoolExp
 
 
+  /* Assertions */
+  type Assertion = BoolExp
+  type Assertions = List[Assertion]
+ 
   /* Statements and blocks. */
   trait Statement
   type Block = List[Statement]
 
   case class Assign(x: String, value: ArithExp) extends Statement
   case class If(cond: BoolExp, th: Block, el: Block) extends Statement
-  case class While(cond: BoolExp, body: Block) extends Statement
+  case class While(cond: BoolExp, assn: List[Assertion], body: Block) extends Statement
 
 
   /* Complete programs. */
@@ -102,9 +107,12 @@ object VCGen {
       ("if" ~> bexp <~ "then") ~ (block <~ "end") ^^ {
         case c ~ t => If(c, t, Nil)
       } |
-      ("while" ~> (bexp /* ~ rep("inv" ~ assn) */) <~ "do") ~ (block <~ "end") ^^ {
-        case c ~ b => While(c, b)
+      ("while" ~> (bexp ~ rep("inv" ~> assn) ) <~ "do") ~ (block <~ "end") ^^ {
+        case c ~ a ~ b => While(c, a, b)
       }
+
+    /* Parsing for Assertion. */
+    def assn : Parser[Assertion] = bexp
 
     /* Parsing for Program. */
     def prog   : Parser[Program] =
