@@ -32,6 +32,8 @@ object VCGen {
 
   /* Assertions */
   type Assertion = BoolExp
+  type PreCondition = BoolExp
+  type PostCondition = BoolExp
 
   /* Statements and blocks. */
   trait Statement
@@ -43,7 +45,7 @@ object VCGen {
 
 
   /* Complete programs. */
-  type Program = Product2[String, Block]
+  type Program = Product4[String, List[PreCondition], List[PostCondition], Block]
 
 
   object ImpParser extends RegexParsers {
@@ -110,11 +112,13 @@ object VCGen {
 
     /* Parsing for Assertion. */
     def assn : Parser[Assertion] = bexp
+    def pre : Parser[PreCondition] = bexp
+    def post : Parser[PostCondition] = bexp
 
     /* Parsing for Program. */
     def prog   : Parser[Program] =
-      ("program" ~> pvar <~ "is") ~ (block <~ "end") ^^ {
-        case n ~ b => (n, b)
+      ("program" ~> pvar ~ rep("pre" ~> pre) ~ rep("post" ~> post)<~ "is") ~ (block <~ "end") ^^ {
+        case n ~ pr ~ po ~ b => (n, pr, po, b)
       }
   }
 
