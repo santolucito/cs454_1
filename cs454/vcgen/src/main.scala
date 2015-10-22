@@ -1,10 +1,39 @@
 import scala.util.parsing.combinator._
 import java.io.FileReader
 
-
 object VCGen {
+ 
+  var ctr = 0
 
-  var cnt = 0
+  /**************** LOGIC *******************/
+  case class Implies(asmp: BoolExp, impl: BoolExp) extends BoolExp
+
+  def wp(cmd:Command, post:PostCondition) : BoolExp = {
+    cmd match {
+      case Assume(b) => Implies(b,post)
+      case Assert(b) => BConj(b,post)
+      case Havoc(x) => 
+        var f = Var("fresh_"+x+ctr)
+        ctr = ctr+1
+        replaceB(x,f,post)
+      case Compose(c1,c2) => wp(c1, wp(c2,post))
+      case Box(c1,c2) => BConj(wp(c1,post),wp(c2,post))
+    }
+  }
+  
+  def replaceB(x:Var, y: Var, b:BoolExp) : BoolExp = {
+    b match {
+      case BCmp((e1,c,e2)) => BCmp((replaceA(x,y,e1),c,replaceA(x,y,e2)))
+      case BVal(v) => BVal(v)
+      case BNot(e) => BNot(replaceB(x,y,e))
+      case BDisj(l,r) => BDisj(replaceB(x,y,l),replaceB(x,y,r))
+      case BConj(l,r) => BConj(replaceB(x,y,l),replaceB(x,y,r))
+      case BParens(e) => BParens(replaceB(x,y,e))
+      case Implies(a, i) => Implies(replaceB(x,y,a),replaceB(x,y,i))
+    }
+  }
+  
+  /******************* IMP ******************/
   /* Arithmetic expressions. */
   trait ArithExp
 
@@ -31,6 +60,7 @@ object VCGen {
   case class BConj(left: BoolExp, right: BoolExp) extends BoolExp
   case class BParens(b: BoolExp) extends BoolExp
   case class BVal(v: Boolean) extends BoolExp
+
 
   /* Assertions */
   type Assertion = BoolExp
@@ -123,8 +153,7 @@ object VCGen {
       }
   }
 
-  /*************** Gaurded Command Language ****************/
-
+  /******************* LFGC ****************/
   /* Comamnds */
   trait Command
 
@@ -132,7 +161,8 @@ object VCGen {
   case class Assert(b: BoolExp) extends Command
   case class Havoc(x: Var) extends Command
   case class Compose(c1: Command, c2: Command) extends Command
-  case class Or(c1: Command, c2: Command) extends Command
+  case class Box(c1: Command, c2: Command) extends Command
+
 
   def translate(p: Program): Command = {
     return translateBlock(p._4)
@@ -153,17 +183,23 @@ object VCGen {
   def composeL(cs: List[Command]) : Command = {
     return (cs.tail).foldLeft (cs.head) (Compose)
   }
+  
+  def conjL(cs: List[BoolExp]) : BoolExp = {
+    var t = BVal(true):BoolExp
+    return cs.foldLeft (t) (BConj)
+  }
 
-  def replace(f: Var, old: Var, e:ArithExp): ArithExp = {
+
+  def replaceA(f: Var, old: Var, e:ArithExp): ArithExp = {
     e match {
       case Num(v) => Num(v)
       case Var(name) => if (name == old){ f } else Var(name)
-      case Parens(a) => Parens(replace(f,old,a))
-      case Add(l,r) => Add(replace(f,old,l),replace(f,old,r))
-      case Sub(l,r) => Sub(replace(f,old,l),replace(f,old,r))
-      case Mul(l,r) => Mul(replace(f,old,l),replace(f,old,r))
-      case Div(l,r) => Div(replace(f,old,l),replace(f,old,r))
-      case Mod(l,r) => Mod(replace(f,old,l),replace(f,old,r))
+      case Parens(a) => Parens(replaceA(f,old,a))
+      case Add(l,r) => Add(replaceA(f,old,l),replaceA(f,old,r))
+      case Sub(l,r) => Sub(replaceA(f,old,l),replaceA(f,old,r))
+      case Mul(l,r) => Mul(replaceA(f,old,l),replaceA(f,old,r))
+      case Div(l,r) => Div(replaceA(f,old,l),replaceA(f,old,r))
+      case Mod(l,r) => Mod(replaceA(f,old,l),replaceA(f,old,r))
     }
   }
 
@@ -186,19 +222,19 @@ object VCGen {
     s match {
       //GC(x:=e) = assume tmp = x; havoc x; assume (x = e[tmp/x]) where temp is fresh
       case Assign(x,e) =>
-        var freshVar = Var("fresh_"+cnt)
-        cnt=cnt+1
+        var freshVar = Var("fresh_"+x+ctr)
+        ctr=ctr+1
         var xVar = Var(x)
         var c1 = Assume(BCmp((freshVar,"=",xVar)))
         var c2 = Havoc(xVar)
-        var c3 = Assume(BCmp((xVar,"=",replace(freshVar,xVar,e))))
+        var c3 = Assume(BCmp((xVar,"=",replaceA(freshVar,xVar,e))))
         return composeL(List(c1,c2,c3))
 
       //GC(if b then c1 else c2) =(assume b; GC(c1)) [] (assume :b; GC(c2))
       case If(c,th,el) =>
         var l = Compose(Assume (c),translateBlock(th))
         var r = Compose(Assume (BNot (c)),translateBlock(el))
-        return Or(l, r)
+        return Box(l, r)
 
       //GC({I} while b do c) = ?
       case While(c,i,b) =>
@@ -211,17 +247,20 @@ object VCGen {
         else c3 = composeL (i.map (x => Assume(x)))
         var c4p1 = composeL (List(Assume(c),translateBlock(b),c1,Assume(BVal(false))))
         var c4p2 = Assume(BNot(c))
-        var c4 = Or(c4p1,c4p2)
+        var c4 = Box(c4p1,c4p2)
         return composeL (List(c1,c3,c4))
     }
-  }
+  } 
 
+
+ 
   def main(args: Array[String]): Unit = {
     val reader = new FileReader(args(0))
     import ImpParser._;
     var progAST = parseAll(prog, reader)
-    var gaurdedCmd = translate(progAST.get) 
-    println(gaurdedCmd)
+    var gaurdedCmd = translate(progAST.get)
+    var formula = wp(gaurdedCmd, conjL(progAST.get._3))
+    println(formula)
 
   }
 }
