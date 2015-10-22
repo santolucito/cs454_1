@@ -21,6 +21,11 @@ object VCGen {
     }
   }
   
+  def conjL(cs: List[BoolExp]) : BoolExp = {
+    var t = BVal(true):BoolExp
+    return cs.foldLeft (t) (BConj)
+  }
+  
   def replaceB(x:Var, y: Var, b:BoolExp) : BoolExp = {
     b match {
       case BCmp((e1,c,e2)) => BCmp((replaceA(x,y,e1),c,replaceA(x,y,e2)))
@@ -165,7 +170,8 @@ object VCGen {
 
 
   def translate(p: Program): Command = {
-    return translateBlock(p._4)
+    var pres = Assume(conjL(p._2))
+    return Compose(pres,translateBlock(p._4))
   }
 
   def translateBlock(b: Block): Command = {
@@ -184,12 +190,6 @@ object VCGen {
     return (cs.tail).foldLeft (cs.head) (Compose)
   }
   
-  def conjL(cs: List[BoolExp]) : BoolExp = {
-    var t = BVal(true):BoolExp
-    return cs.foldLeft (t) (BConj)
-  }
-
-
   def replaceA(f: Var, old: Var, e:ArithExp): ArithExp = {
     e match {
       case Num(v) => Num(v)
@@ -240,11 +240,11 @@ object VCGen {
       case While(c,i,b) =>
         var c1 =
           if (i.isEmpty) Assert(BVal(false))
-          else composeL (i.map (x => Assert(x)))
+          else composeL (i.map (Assert))
         //var c2 = allVars b
-        var c3 = composeL ((allVars(b).map (x => Havoc(x))))
+        var c3 = composeL ((allVars(b).map (Havoc)))
         if (i.isEmpty) {c1 = Assume(BVal(true))}
-        else c3 = composeL (i.map (x => Assume(x)))
+        else c3 = composeL (i.map (Assume))
         var c4p1 = composeL (List(Assume(c),translateBlock(b),c1,Assume(BVal(false))))
         var c4p2 = Assume(BNot(c))
         var c4 = Box(c4p1,c4p2)
