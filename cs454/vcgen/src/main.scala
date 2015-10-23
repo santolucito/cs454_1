@@ -13,11 +13,11 @@ object VCGen {
       case Assume(b) => Implies(b,post)
       case Assert(b) => BConj(b,post)
       case Havoc(x) => 
-        var f = Var("fresh_"+x+ctr)
+        var f = Var("fresh"+x+ctr)
         ctr = ctr+1
         replaceB(x,f,post)
-      case Compose(c1,c2) => wp(c1, wp(c2,post))
-      case Box(c1,c2) => BConj(wp(c1,post),wp(c2,post))
+      case Compose(c1,c2) => BParens(wp(c1, BParens(wp(c2,post))))
+      case Box(c1,c2) => BConj(BParens(wp(c1,post)),BParens(wp(c2,post)))
     }
   }
   
@@ -37,7 +37,32 @@ object VCGen {
       case Implies(a, i) => Implies(replaceB(x,y,a),replaceB(x,y,i))
     }
   }
-  
+
+  def allVars_B(b:BoolExp): List[String] = {
+    b match {
+      case BCmp((e1,c,e2)) => allVars_A(e1)++allVars_A(e2)
+      case BVal(v) => return List() 
+      case BNot(e) => allVars_B(e)
+      case BDisj(l,r) => allVars_B(l)++allVars_B(r)
+      case BConj(l,r) => allVars_B(l)++allVars_B(r)
+      case BParens(e) => allVars_B(e)
+      case Implies(a, i) => allVars_B(a)++allVars_B(i)
+    }
+  }
+ 
+  def allVars_A(e: ArithExp): List[String] = {
+    e match {
+      case Num(v) => return List()
+      case Var(name) => return List(name)
+      case Parens(a) => allVars_A(a)
+      case Add(l,r) => allVars_A(l)++allVars_A(r)
+      case Sub(l,r) => allVars_A(l)++allVars_A(r)
+      case Mul(l,r) => allVars_A(l)++allVars_A(r)
+      case Div(l,r) => allVars_A(l)++allVars_A(r)
+      case Mod(l,r) => allVars_A(l)++allVars_A(r)
+    }
+  }
+
   /******************* IMP ******************/
   /* Arithmetic expressions. */
   trait ArithExp
@@ -222,7 +247,7 @@ object VCGen {
     s match {
       //GC(x:=e) = assume tmp = x; havoc x; assume (x = e[tmp/x]) where temp is fresh
       case Assign(x,e) =>
-        var freshVar = Var("fresh_"+x+ctr)
+        var freshVar = Var("fresh"+x+ctr)
         ctr=ctr+1
         var xVar = Var(x)
         var c1 = Assume(BCmp((freshVar,"=",xVar)))
@@ -253,14 +278,40 @@ object VCGen {
   } 
 
 
+  def bToString(f: BoolExp): String = {
+    f match {
+      case Implies(a, i) => "(=> \n "+bToString(a)+" "+bToString(i)+")" 
+      case BCmp((e1,c,e2)) => "("+c+" "+aToString(e1)+" "+aToString(e2)+")"
+      case BNot(b) => "(not \n"+bToString(b)+")"
+      case BDisj(l,r) => "(or \n"+bToString(l)+" "+bToString(r)+")"
+      case BConj(l,r) => "(and \n"+bToString(l)+" "+bToString(r)+")"
+      //case BParens(b) => "("+bToString(b)+")"
+      case BParens(b) => bToString(b)
+      case BVal(v) => if (v) {"true"} else "false"
+    }
+  } 
  
+  def aToString(e:ArithExp): String = {
+    e match {
+      case Num(v) => v.toString
+      case Var(name) => name
+      case Parens(a) => "("+aToString(a)+")"
+      case Add(l,r) => "(+ "+aToString(l)+" "+aToString(r)+")"
+      case Sub(l,r) => "(- "+aToString(l)+" "+aToString(r)+")"
+      case Mul(l,r) => "(* "+aToString(l)+" "+aToString(r)+")"
+      case Div(l,r) => "(/ "+aToString(l)+" "+aToString(r)+")"
+      case Mod(l,r) => "(% "+aToString(l)+" "+aToString(r)+")"
+    }
+  }
+
   def main(args: Array[String]): Unit = {
     val reader = new FileReader(args(0))
     import ImpParser._;
     var progAST = parseAll(prog, reader)
     var gaurdedCmd = translate(progAST.get)
     var formula = wp(gaurdedCmd, conjL(progAST.get._3))
-    println(formula)
+    var vars = (allVars_B(formula).distinct).map (x => println("(declare-const "+x+" Real)"))
+    println("(assert "+bToString(BNot(formula))+")")
 
   }
 }
