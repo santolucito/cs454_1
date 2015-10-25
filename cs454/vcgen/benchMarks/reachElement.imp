@@ -1,0 +1,17 @@
+program reachElement
+  pre n >= 0
+  pre n%2 = 0
+  pre x <= n
+  post x = n
+is
+  if x%2 = 1
+  then x := x+1;
+  end
+  p := 2;
+  while x < n 
+    inv x <= n
+  do
+    x := x + p;
+  end
+end
+

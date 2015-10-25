@@ -1,0 +1,16 @@
+program prime
+  pre p > 2
+is 
+  i := 2;
+  count := 0;
+  while i < p
+    inv i <= p
+    inv i > 0
+  do 
+    if p%i = 0
+    then 
+      count := count + 1;
+    end
+    i := i + 1;
+  end
+end

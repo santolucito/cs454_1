@@ -1,0 +1,19 @@
+program reminder 
+  pre m > 0
+  pre n > 0
+  post p = m%n
+is
+  if (m < n)
+  then
+    tempt := m;
+    m := n;
+    n := tempt;
+  end
+  p := m;
+  q := n;
+  while p >= q
+    inv p >= 0
+  do 
+    p := p - q;
+  end
+end 

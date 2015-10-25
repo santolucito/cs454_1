@@ -300,7 +300,7 @@ object VCGen {
       case Sub(l,r) => "(- "+aToString(l)+" "+aToString(r)+")"
       case Mul(l,r) => "(* "+aToString(l)+" "+aToString(r)+")"
       case Div(l,r) => "(/ "+aToString(l)+" "+aToString(r)+")"
-      case Mod(l,r) => "(% "+aToString(l)+" "+aToString(r)+")"
+      case Mod(l,r) => "(mod "+aToString(l)+" "+aToString(r)+")"
     }
   }
 

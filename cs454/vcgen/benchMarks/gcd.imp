@@ -1,0 +1,22 @@
+program gcd
+  pre m > 0
+  pre n > 0
+  post m%p = 0
+  post n%p = 0
+is
+  if (m < n)
+  then
+    tempt := m;
+    m := n;
+    n := tempt;
+  end
+  p := m;
+  q := n;
+  while q > 0
+    inv q >= 0
+  do
+    tmp := p%q;
+    p := q;
+    q := tmp;
+  end
+end 

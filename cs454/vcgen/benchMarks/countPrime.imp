@@ -1,0 +1,29 @@
+program countPrime
+  pre p > 1
+  post count < p
+is
+  m := p;
+  count := 0;
+  while m > 0
+     inv m >= 0
+  do
+     i := 1;
+     countFactor := 0;
+     while  i < m
+        inv i <= m
+        inv i > 0
+     do
+        if m % i = 0
+        then
+           countFactor := countFactor + 1;
+        end
+        i := i + 1;
+     end
+     if countFactor > 1
+     then
+       count := count + 1;
+     end
+     m := m - 1;
+   end
+end
+
